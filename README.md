@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SecureDrive - Password-Protected Cloud Storage
 
-## Getting Started
+A Google Drive-like application with password-based folder authentication built with Next.js and Cloudflare Workers.
 
-First, run the development server:
+## Features
+
+- 🔐 Password-protected folders (no user accounts needed)
+- 📤 Drag-and-drop file uploads
+- 🖼️ Media preview (images & videos)
+- 🌙 Beautiful dark mode UI
+- 📱 Fully responsive design
+- 🚀 Serverless architecture with Cloudflare Workers
+- 💾 R2 storage for files
+- ⚡ KV storage for metadata
+
+## Setup Instructions
+
+### Prerequisites
+
+- Node.js 18+
+- Cloudflare account
+- Wrangler CLI installed (`npm install -g wrangler`)
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Create a Cloudflare KV namespace:
+   ```bash
+   wrangler kv:namespace create "FOLDERS_KV"
+   ```
+
+4. Create an R2 bucket:
+   ```bash
+   wrangler r2 bucket create secure-drive-files
+   ```
+
+5. Update `wrangler.toml` with your KV namespace ID and R2 bucket name
+
+6. Set up environment variables in `wrangler.toml`:
+   - `JWT_SECRET`: A secure random string
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Deployment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+wrangler deploy
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Architecture
 
-## Learn More
+- **Frontend**: Next.js with Tailwind CSS and shadcn/ui
+- **Backend**: Cloudflare Workers
+- **Storage**: R2 for files, KV for metadata
+- **Authentication**: Password-based (bcrypt hashed)
 
-To learn more about Next.js, take a look at the following resources:
+## Usage
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Create a folder with a password
+2. Share the folder ID and password with others
+3. Upload files via drag-and-drop
+4. View media files directly in the browser
+5. Download or delete files as needed
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Security Notes
 
-## Deploy on Vercel
+- Passwords are hashed using bcrypt
+- Each folder has its own unique password
+- No user accounts or sessions stored
+- Files are stored securely in R2
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT

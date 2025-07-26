@@ -17,7 +17,23 @@
 	},
 	"observability": {
 		"enabled": true
-	}
+	},
+	"vars": {
+		"JWT_SECRET":"crackmeifyoucan101"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "FOLDERS_KV",
+			"id": "d955b414ac2248b587e803a5daba17cd"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "FILES_BUCKET",
+			"bucket_name": "next-storage",
+			"preview_bucket_name": "next-storage-preview"
+		}
+	]
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

@@ -1,103 +1,175 @@
-import Image from "next/image";
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { toast } from '@/hooks/use-toast'
+import { Folder, HardDrive, Lock, Plus, Search } from 'lucide-react'
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const router = useRouter()
+  const [isCreating, setIsCreating] = useState(false)
+  const [isAccessing, setIsAccessing] = useState(false)
+  const [folderName, setFolderName] = useState('')
+  const [password, setPassword] = useState('')
+  const [folderId, setFolderId] = useState('')
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const createFolder = async () => {
+    if (!folderName || !password) {
+      toast({
+        title: "Error",
+        description: "Please enter folder name and password",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      const res = await fetch('/api/folders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: folderName, password })
+      })
+
+      const data = await res.json() as any
+      
+      if (data.success) {
+        router.push(`/folder/${data.data.id}?pwd=${password}`)
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to create folder",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create folder",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const accessFolder = async () => {
+    if (!folderId || !password) {
+      toast({
+        title: "Error",
+        description: "Please enter folder ID and password",
+        variant: "destructive"
+      })
+      return
+    }
+
+    router.push(`/folder/${folderId}?pwd=${password}`)
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      <div className="max-w-4xl w-full mx-auto text-center space-y-8">
+        <div className="space-y-4">
+          <HardDrive className="w-16 h-16 mx-auto text-primary" />
+          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
+            SecureDrive
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            Password-protected cloud storage without accounts
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <div className="grid md:grid-cols-2 gap-6 mt-12">
+          <Dialog open={isCreating} onOpenChange={setIsCreating}>
+            <DialogTrigger asChild>
+              <Button size="lg" className="h-32 text-lg flex flex-col gap-3">
+                <Plus className="w-8 h-8" />
+                Create New Folder
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Folder</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <Input
+                  placeholder="Folder name"
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                />
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Button onClick={createFolder} className="w-full">
+                  <Lock className="w-4 h-4 mr-2" />
+                  Create Secure Folder
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isAccessing} onOpenChange={setIsAccessing}>
+            <DialogTrigger asChild>
+              <Button size="lg" variant="outline" className="h-32 text-lg flex flex-col gap-3">
+                <Folder className="w-8 h-8" />
+                Access Existing Folder
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Access Folder</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <Input
+                  placeholder="Folder ID"
+                  value={folderId}
+                  onChange={(e) => setFolderId(e.target.value)}
+                />
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Button onClick={accessFolder} className="w-full">
+                  <Search className="w-4 h-4 mr-2" />
+                  Access Folder
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="mt-16 p-6 bg-card rounded-lg border">
+          <h2 className="text-xl font-semibold mb-4">How it works</h2>
+          <div className="grid md:grid-cols-3 gap-4 text-left">
+            <div className="space-y-2">
+              <div className="text-3xl">🔐</div>
+              <h3 className="font-semibold">Create Folder</h3>
+              <p className="text-sm text-muted-foreground">
+                Set a password when creating a folder. This becomes the only key to access it.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <div className="text-3xl">📤</div>
+              <h3 className="font-semibold">Upload Files</h3>
+              <p className="text-sm text-muted-foreground">
+                Drag and drop files or click to upload. Preview images and videos directly.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <div className="text-3xl">🔗</div>
+              <h3 className="font-semibold">Share Access</h3>
+              <p className="text-sm text-muted-foreground">
+                Share the folder ID and password with anyone who needs access.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  );
+  )
 }
