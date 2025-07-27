@@ -1,7 +1,7 @@
-import bcrypt from "bcryptjs";
 import { NextRequest } from "next/server";
 import { Logger } from "@/lib/logger";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { verifyPassword, getPasswordFromAuth } from "@/lib/auth";
 
 interface Folder {
   id: string;
@@ -25,13 +25,6 @@ function generateId(): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
-function getPasswordFromAuth(request: NextRequest): string | null {
-  const auth = request.headers.get("Authorization");
-  if (!auth || !auth.startsWith("Bearer ")) {
-    return null;
-  }
-  return auth.substring(7);
-}
 
 export async function POST(
   request: NextRequest,
@@ -45,7 +38,7 @@ export async function POST(
     const { id: folderId } = await params;
     Logger.request(method, url, `Uploading file to folder ${folderId}`);
 
-    const password = getPasswordFromAuth(request);
+    const password = getPasswordFromAuth(request.headers.get("Authorization"));
     if (!password) {
       Logger.warn({
         method,
@@ -78,7 +71,7 @@ export async function POST(
     }
 
     const folder: Folder = JSON.parse(folderData);
-    const isValid = await bcrypt.compare(password, folder.passwordHash);
+    const isValid = await verifyPassword(password, folder.passwordHash);
 
     if (!isValid) {
       Logger.warn({

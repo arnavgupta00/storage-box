@@ -1,7 +1,8 @@
-import bcrypt from 'bcryptjs'
 import { NextRequest } from 'next/server'
 import { Logger } from '@/lib/logger'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { verifyPassword, getPasswordFromAuth } from '@/lib/auth'
+import { folderCache, fileCache } from '@/lib/cache'
 
 
 interface Folder {
@@ -22,13 +23,6 @@ interface FileRecord {
   createdAt: string
 }
 
-function getPasswordFromAuth(request: NextRequest): string | null {
-  const auth = request.headers.get('Authorization')
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return null
-  }
-  return auth.substring(7)
-}
 
 export async function GET(
   request: NextRequest,
@@ -42,7 +36,7 @@ export async function GET(
     const { id: folderId } = await params
     Logger.request(method, url, `Retrieving folder ${folderId}`)
     
-    const password = getPasswordFromAuth(request)
+    const password = getPasswordFromAuth(request.headers.get('Authorization'))
     if (!password) {
       Logger.warn({ 
         method, 
@@ -56,20 +50,26 @@ export async function GET(
 
     const { env } = getCloudflareContext()
     
-    const folderData = await env.FOLDERS_KV.get(`folder:${folderId}`)
+    // Check cache first
+    let folderData = folderCache.get(`folder:${folderId}`)
     if (!folderData) {
-      Logger.warn({ 
-        method, 
-        url, 
-        folderId, 
-        message: 'Folder not found',
-        statusCode: 404
-      })
-      return Response.json({ success: false, error: 'Folder not found' }, { status: 404 })
+      const kvData = await env.FOLDERS_KV.get(`folder:${folderId}`)
+      if (!kvData) {
+        Logger.warn({ 
+          method, 
+          url, 
+          folderId, 
+          message: 'Folder not found',
+          statusCode: 404
+        })
+        return Response.json({ success: false, error: 'Folder not found' }, { status: 404 })
+      }
+      folderData = kvData
+      folderCache.set(`folder:${folderId}`, folderData)
     }
 
     const folder: Folder = JSON.parse(folderData)
-    const isValid = await bcrypt.compare(password, folder.passwordHash)
+    const isValid = await verifyPassword(password, folder.passwordHash)
 
     if (!isValid) {
       Logger.warn({ 
@@ -82,18 +82,38 @@ export async function GET(
       return Response.json({ success: false, error: 'Invalid password' }, { status: 401 })
     }
 
-    // Get files
-    const filesData = await env.FOLDERS_KV.get(`files:${folderId}`)
-    const files: FileRecord[] = filesData ? JSON.parse(filesData) : []
+    // Get files with caching
+    let filesData = fileCache.get(`files:${folderId}`)
+    if (!filesData) {
+      const kvFilesData = await env.FOLDERS_KV.get(`files:${folderId}`)
+      filesData = kvFilesData || '[]'
+      fileCache.set(`files:${folderId}`, filesData)
+    }
+    const files: FileRecord[] = JSON.parse(filesData)
+
+    // Add pagination support
+    const url_obj = new URL(request.url)
+    const page = parseInt(url_obj.searchParams.get('page') || '1')
+    const limit = Math.min(parseInt(url_obj.searchParams.get('limit') || '20'), 50) // Max 50 items
+    const startIndex = (page - 1) * limit
+    const endIndex = startIndex + limit
+    const paginatedFiles = files.slice(startIndex, endIndex)
 
     const duration = Date.now() - startTime
-    Logger.response(method, url, 200, duration, `Folder retrieved with ${files.length} files`)
+    Logger.response(method, url, 200, duration, `Folder retrieved with ${paginatedFiles.length}/${files.length} files`)
 
     return Response.json({
       success: true,
       data: {
         folder: { ...folder, passwordHash: undefined },
-        files
+        files: paginatedFiles,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(files.length / limit),
+          totalFiles: files.length,
+          hasNext: endIndex < files.length,
+          hasPrev: page > 1
+        }
       }
     })
   } catch (error) {

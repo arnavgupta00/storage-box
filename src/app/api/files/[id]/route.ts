@@ -1,7 +1,7 @@
-import bcrypt from "bcryptjs";
 import { NextRequest } from "next/server";
 import { Logger } from "@/lib/logger";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { verifyPassword, getPasswordFromAuth } from "@/lib/auth";
 
 interface Folder {
   id: string;
@@ -21,13 +21,6 @@ interface FileRecord {
   createdAt: string;
 }
 
-function getPasswordFromAuth(request: NextRequest): string | null {
-  const auth = request.headers.get("Authorization");
-  if (!auth || !auth.startsWith("Bearer ")) {
-    return null;
-  }
-  return auth.substring(7);
-}
 
 export async function GET(
   request: NextRequest,
@@ -71,11 +64,60 @@ export async function GET(
       return new Response("File not found", { status: 404 });
     }
 
-    // Return file with appropriate headers
+    // Handle range requests for large files (video streaming)
+    const range = request.headers.get("range");
+    const size = object.size;
+    
+    if (range) {
+      const ranges = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(ranges[0], 10);
+      const end = ranges[1] ? parseInt(ranges[1], 10) : size - 1;
+      const chunkSize = (end - start) + 1;
+      
+      // Get the specific range from R2
+      const rangeObject = await env.FILES_BUCKET.get(key, {
+        range: { offset: start, length: chunkSize }
+      });
+      
+      if (!rangeObject) {
+        Logger.error({
+          method,
+          url,
+          fileId,
+          message: "Failed to get range from R2 storage",
+          statusCode: 416,
+        });
+        return new Response("Range not satisfiable", { status: 416 });
+      }
+      
+      const headers = new Headers({
+        "Content-Type": mimeType,
+        "Content-Disposition": `inline; filename="${name}"`,
+        "Cache-Control": "public, max-age=3600",
+        "Accept-Ranges": "bytes",
+        "Content-Range": `bytes ${start}-${end}/${size}`,
+        "Content-Length": chunkSize.toString(),
+      });
+
+      const duration = Date.now() - startTime;
+      Logger.response(
+        method,
+        url,
+        206,
+        duration,
+        `File ${name} partial content served (${start}-${end}/${size})`
+      );
+
+      return new Response(rangeObject.body, { status: 206, headers });
+    }
+
+    // For non-range requests, still support Accept-Ranges for future range requests
     const headers = new Headers({
       "Content-Type": mimeType,
       "Content-Disposition": `inline; filename="${name}"`,
       "Cache-Control": "public, max-age=3600",
+      "Accept-Ranges": "bytes",
+      "Content-Length": size.toString(),
     });
 
     const duration = Date.now() - startTime;
@@ -114,7 +156,7 @@ export async function DELETE(
     const { id: fileId } = await params;
     Logger.request(method, url, `Deleting file ${fileId}`);
 
-    const password = getPasswordFromAuth(request);
+    const password = getPasswordFromAuth(request.headers.get("Authorization"));
     if (!password) {
       Logger.warn({
         method,
@@ -167,7 +209,7 @@ export async function DELETE(
     }
 
     const folder: Folder = JSON.parse(folderData);
-    const isValid = await bcrypt.compare(password, folder.passwordHash);
+    const isValid = await verifyPassword(password, folder.passwordHash);
 
     if (!isValid) {
       Logger.warn({

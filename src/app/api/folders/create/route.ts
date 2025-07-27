@@ -1,7 +1,7 @@
-import bcrypt from 'bcryptjs'
 import { NextRequest } from 'next/server'
 import { Logger } from '@/lib/logger'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { hashPassword, validatePassword } from '@/lib/auth'
 
 
 
@@ -28,18 +28,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as { name: string; password: string }
     const { name, password } = body
 
-    if (!name || !password) {
+    if (!name || !validatePassword(password)) {
       Logger.warn({ 
         method, 
         url, 
-        message: 'Missing required fields for folder creation',
+        message: 'Missing or invalid required fields for folder creation',
         statusCode: 400
       })
-      return Response.json({ success: false, error: 'Name and password required' }, { status: 400 })
+      return Response.json({ success: false, error: 'Name and valid password (min 4 chars) required' }, { status: 400 })
     }
 
     const folderId = generateId()
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await hashPassword(password)
 
     const folder: Folder = {
       id: folderId,

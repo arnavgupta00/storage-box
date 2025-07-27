@@ -1,12 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from '@/hooks/use-toast'
-import { Folder, HardDrive, Lock, Plus, Search } from 'lucide-react'
+import { Folder, HardDrive, Lock, Plus, Search, Calendar } from 'lucide-react'
+
+interface FolderInfo {
+  id: string;
+  name: string;
+  createdAt: string;
+}
 
 export default function Home() {
   const router = useRouter()
@@ -15,6 +21,28 @@ export default function Home() {
   const [folderName, setFolderName] = useState('')
   const [password, setPassword] = useState('')
   const [folderId, setFolderId] = useState('')
+  const [folders, setFolders] = useState<FolderInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [accessPassword, setAccessPassword] = useState('')
+  const [selectedFolder, setSelectedFolder] = useState<FolderInfo | null>(null)
+
+  useEffect(() => {
+    fetchFolders()
+  }, [])
+
+  const fetchFolders = async () => {
+    try {
+      const res = await fetch('/api/folders')
+      const data = await res.json() as { success: boolean; data: FolderInfo[] }
+      if (data.success) {
+        setFolders(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch folders:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const createFolder = async () => {
     if (!folderName || !password) {
@@ -36,6 +64,10 @@ export default function Home() {
       const data = await res.json() as any
       
       if (data.success) {
+        setIsCreating(false)
+        setFolderName('')
+        setPassword('')
+        fetchFolders()
         router.push(`/folder/${data.data.id}?pwd=${password}`)
       } else {
         toast({
@@ -66,6 +98,19 @@ export default function Home() {
     router.push(`/folder/${folderId}?pwd=${password}`)
   }
 
+  const accessExistingFolder = async (folder: FolderInfo) => {
+    if (!accessPassword) {
+      toast({
+        title: "Error",
+        description: "Please enter the folder password",
+        variant: "destructive"
+      })
+      return
+    }
+
+    router.push(`/folder/${folder.id}?pwd=${accessPassword}`)
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="max-w-4xl w-full mx-auto text-center space-y-8">
@@ -78,6 +123,71 @@ export default function Home() {
             Password-protected cloud storage without accounts
           </p>
         </div>
+
+        {!loading && folders.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-semibold mb-6">Available Folders</h2>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {folders.map((folder) => (
+                <div key={folder.id} className="bg-card border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Folder className="w-5 h-5 text-primary" />
+                    <h3 className="font-medium truncate">{folder.name}</h3>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    {new Date(folder.createdAt).toLocaleDateString()}
+                  </div>
+                  <Dialog onOpenChange={(open) => {
+                    if (!open) {
+                      setAccessPassword('')
+                      setSelectedFolder(null)
+                    }
+                  }}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        className="w-full"
+                        onClick={() => setSelectedFolder(folder)}
+                      >
+                        <Lock className="w-4 h-4 mr-2" />
+                        Access Folder
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Access {folder.name}</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-4">
+                        <p className="text-sm text-muted-foreground">
+                          Enter the password for "{folder.name}" to access its contents.
+                        </p>
+                        <Input
+                          type="password"
+                          placeholder="Folder password"
+                          value={accessPassword}
+                          onChange={(e) => setAccessPassword(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              accessExistingFolder(folder)
+                            }
+                          }}
+                        />
+                        <Button 
+                          onClick={() => accessExistingFolder(folder)} 
+                          className="w-full"
+                        >
+                          <Search className="w-4 h-4 mr-2" />
+                          Open Folder
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid md:grid-cols-2 gap-6 mt-12">
           <Dialog open={isCreating} onOpenChange={setIsCreating}>
